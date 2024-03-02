@@ -1,70 +1,46 @@
-import { createClient } from 'redis';
 import { promisify } from 'util';
+import { createClient } from 'redis';
 
 /**
- * Redis client class that is been used to interact with Redis.
- */
+ * Redis Clinet Class that has:
+ * 1. constructor that creates a client to Redis, also handles errors
+ * 2. function isAlive that returns true when the connection to Redis is a success otherwise, false
+ * 3. async function get that takes a string key as argument and returns the Redis value stored for this key
+ * 4. async function set that takes a string key, a value and a duration in second as arguments to store it in Redis 
+ * 5. async function del that takes a string key as argument and remove the value in Redis for this key
+ * Also exports an instance of RedisClient called redisClient
+ * */
+
 class RedisClient {
   constructor() {
     this.client = createClient();
-    this.isConnected = false;
-
+    this.isClientConnected = true;
     this.client.on('error', (err) => {
-      console.log('Redis Client Error', err);
+      console.error('Redis client failed to connect:', err.message || err.toString());
+      this.isClientConnected = false;
     });
-
     this.client.on('connect', () => {
-      this.isConnected = true;
+      this.isClientConnected = true;
     });
-
-    this.asyncSetX = promisify(this.client.setex).bind(this.client);
-    this.asyncGet = promisify(this.client.get).bind(this.client);
-    this.asyncDel = promisify(this.client.del).bind(this.client);
-    this.asyncExpire = promisify(this.client.expire).bind(this.client);
   }
 
-  /**
-   * Checks if the client is alive using pinging.
-   *
-   * @return {boolean} Returns true if the client is alive, false otherwise.
-   */
   isAlive() {
-    return this.isConnected;
+    return this.isClientConnected;
   }
 
-  /**
-   * Sets a key-value pair and sets an expiry time for the key.
-   *
-   * @param {string} key - the key to set the value for
-   * @param {any} value - the value to set for the key
-   * @param {number} expiry - the time in seconds for the key to expire
-   * @return {Promise<void>} - a Promise that resolves when the key-value pair
-   * is set and the expiry is set
-   */
-  set(key, value, expiry) {
-    this.asyncSetX(key, expiry, value);
+  async get(key) {
+    return promisify(this.client.GET).bind(this.client)(key);
   }
 
-  /**
-   * Retrieves the value associated with the given key.
-   *
-   * @param {string} key - the key to retrieve the value for
-   * @return {*} the value associated with the given key
-   */
-  get(key) {
-    return this.asyncGet(key);
+  async set(key, value, duration) {
+    await promisify(this.client.SETEX)
+      .bind(this.client)(key, duration, value);
   }
 
-  /**
-   * Deletes the specified key using asynchronous delete method.
-   *
-   * @param {any} key - the key to be deleted
-   * @return {Promise} A promise that resolves after the deletion is complete
-   */
-  del(key) {
-    return this.asyncDel(key);
+  async del(key) {
+    await promisify(this.client.DEL).bind(this.client)(key);
   }
 }
 
-const redisClient = new RedisClient();
+export const redisClient = new RedisClient();
 export default redisClient;
